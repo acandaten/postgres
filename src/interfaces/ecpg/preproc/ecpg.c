@@ -42,7 +42,7 @@ help(const char *progname)
 	printf(_("  -c             automatically generate C code from embedded SQL code;\n"
 			 "                 this affects EXEC SQL TYPE\n"));
 	printf(_("  -C MODE        set compatibility mode; MODE can be one of\n"
-			 "                 \"INFORMIX\", \"INFORMIX_SE\", \"ORACLE\"\n"));
+			 "                 \"INFORMIX\", \"INFORMIX_SE\", \"ORACLE\", \"INGRES\"\n"));
 #ifdef YYDEBUG
 	printf(_("  -d             generate parser debug output\n"));
 #endif
@@ -213,6 +213,10 @@ main(int argc, char *const argv[])
 				else if (pg_strcasecmp(optarg, "ORACLE") == 0)
 				{
 					compat = ECPG_COMPAT_ORACLE;
+				}
+				else if (pg_strcasecmp(optarg, "INGRES") == 0)
+				{
+					compat = ECPG_COMPAT_INGRES;
 				}
 				else
 				{

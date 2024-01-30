@@ -132,6 +132,10 @@ fe-misc.o: fe-misc.c $(top_builddir)/src/port/pg_config_paths.h
 $(top_builddir)/src/port/pg_config_paths.h:
 	$(MAKE) -C $(top_builddir)/src/port pg_config_paths.h
 
+install-info:
+	echo $(DESTDIR)$(includedir)
+	echo $(INSTALL_DATA)
+
 install: all installdirs install-lib
 	$(INSTALL_DATA) $(srcdir)/libpq-fe.h '$(DESTDIR)$(includedir)'
 	$(INSTALL_DATA) $(srcdir)/libpq-events.h '$(DESTDIR)$(includedir)'

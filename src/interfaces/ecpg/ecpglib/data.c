@@ -14,6 +14,7 @@
 #include "pgtypes_numeric.h"
 #include "pgtypes_timestamp.h"
 #include "sqlca.h"
+#include <time.h>
 
 /* returns true if character c is a delimiter for the given array type */
 static bool
@@ -122,6 +123,24 @@ check_special_value(char *ptr, double *retval, char **endptr)
 	return false;
 }
 
+static int parseISOTimestamp(char *str,struct tm *tm) {
+  char * ret;
+  if (str[4] == '-' && str[7] == '-' && str[13] ==  ':') {
+    ret = strptime(str, "%Y-%m-%d %H:%M:%S", tm);
+    if (ret == NULL) return 0;
+    return 1;
+  }
+  return 0;
+}
+
+static int isEpoch(struct tm *tm) {
+  if (tm->tm_hour == 0 && tm->tm_min == 0&& tm->tm_sec == 0) {
+    if (tm->tm_year == 70 && tm->tm_mon == 0 && tm->tm_mday == 1)
+      return 1;
+  }
+  return 0;
+}
+
 /* imported from src/backend/utils/adt/encode.c */
 
 unsigned
@@ -212,8 +231,13 @@ ecpg_get_data(const PGresult *results, int act_tuple, int act_field, int lineno,
 	char	   *pval = (char *) PQgetvalue(results, act_tuple, act_field);
 	int			binary = PQfformat(results, act_field);
 	int			size = PQgetlength(results, act_tuple, act_field);
+	int         col_type = PQftype(results, act_field);
 	int			value_for_indicator = 0;
 	long		log_offset;
+	// printf("data.c: type=%d ind_type=%d act_tuple=%d act_field=%d size:%d varcharsize=%d col_type=%d\n",type,ind_type,act_tuple, act_field, size, varcharsize, col_type);
+	struct tm tm_unix;
+	int       is_timestamp;
+	char      s_timestamp[25];
 
 	if (sqlca == NULL)
 	{
@@ -581,6 +605,24 @@ ecpg_get_data(const PGresult *results, int act_tuple, int act_field, int lineno,
 						if (varcharsize == 0 && offset == sizeof(char *))
 							str = *(char **) str;
 
+						// printf("varcharsize=%d size=%d str=%5s\n", varcharsize, size, str);
+
+						is_timestamp = 0;
+						if (INGRES_MODE(compat) && col_type == 1114) { // Timestamp
+							// printf("ECPGt_char:size=%d varcharsize=%d ind_type=%d :%s\n", size, varcharsize, ind_type, str);
+							// PGTYPEStimestamp_fmt_asc(&ts1, stringBuffer,sizeof(stringBuffer),formatString);
+							is_timestamp = parseISOTimestamp(pval, &tm_unix);
+							if (is_timestamp != false) {
+								memset(s_timestamp, 0, sizeof(s_timestamp));
+								if (isEpoch(&tm_unix) != 0) {
+									sprintf(s_timestamp, "");
+								} else {
+									strftime(s_timestamp, sizeof(s_timestamp), "%d-%b-%Y %H:%M:%S", &tm_unix);
+								}
+								// printf("s_timestamp=%s\n", s_timestamp);
+							}
+						}
+
 						if (varcharsize > size)
 						{
 							/*
@@ -591,7 +633,7 @@ ecpg_get_data(const PGresult *results, int act_tuple, int act_field, int lineno,
 							{
 								memset(str, ' ', varcharsize);
 								memcpy(str, pval, size);
-								str[varcharsize - 1] = '\0';
+								str[varcharsize - 1] = '\0'; 
 
 								/*
 								 * compatibility mode empty string gets -1
@@ -623,9 +665,15 @@ ecpg_get_data(const PGresult *results, int act_tuple, int act_field, int lineno,
 									}
 								}
 							}
+							else if (is_timestamp != 0) {
+								strcpy(str, s_timestamp);
+								// printf("LINE %d: strncpy %s\n", __LINE__, str);
+								is_timestamp = 0;
+							}
 							else
 							{
 								strncpy(str, pval, size + 1);
+								// printf("LINE %d: strncpy %s\n", __LINE__, str);
 							}
 							/* do the rtrim() */
 							if (type == ECPGt_string)
@@ -638,6 +686,8 @@ ecpg_get_data(const PGresult *results, int act_tuple, int act_field, int lineno,
 									last--;
 								}
 							}
+							// printf("LINE %d: str=%s\n", __LINE__, str);
+
 						}
 						else
 						{
@@ -651,12 +701,19 @@ ecpg_get_data(const PGresult *results, int act_tuple, int act_field, int lineno,
 								charsize = size + 1;
 
 							strncpy(str, pval, charsize);
+							// printf("LINE %d: charsize=%d\n", __LINE__, charsize);
 
 							/* compatibility mode, null terminate char array */
 							if (ORACLE_MODE(compat) && (charsize - 1) < size)
 							{
 								if (type == ECPGt_char || type == ECPGt_unsigned_char)
 									str[charsize - 1] = '\0';
+							}
+							else if (is_timestamp != 0) {
+								strncpy(str, s_timestamp, charsize);
+								str[charsize - 1] = '\0';
+								// printf("LINE %d: strncpy %s\n", __LINE__, str);
+								is_timestamp = 0;
 							}
 
 							if (charsize < size || (ORACLE_MODE(compat) && (charsize - 1) < size))
@@ -692,6 +749,9 @@ ecpg_get_data(const PGresult *results, int act_tuple, int act_field, int lineno,
 
 				case ECPGt_varchar:
 					{
+						if (INGRES_MODE(compat)) {
+							// PGTYPEStimestamp_fmt_asc(&ts1, stringBuffer,sizeof(stringBuffer),formatString);
+						}
 						struct ECPGgeneric_varchar *variable =
 						(struct ECPGgeneric_varchar *) (var + offset * act_tuple);
 
@@ -902,6 +962,9 @@ ecpg_get_data(const PGresult *results, int act_tuple, int act_field, int lineno,
 					endchar = *endptr;
 					*endptr = '\0';
 					tres = PGTYPEStimestamp_from_asc(pval, &scan_length);
+					if (INGRES_MODE(compat)) {
+						// PGTYPEStimestamp_fmt_asc(&ts1, stringBuffer,sizeof(stringBuffer),formatString);
+					}
 					*endptr = endchar;
 
 					/* did we get an error? */
