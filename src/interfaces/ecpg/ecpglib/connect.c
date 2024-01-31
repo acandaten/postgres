@@ -120,9 +120,21 @@ ecpg_finish(struct connection *act)
 {
 	if (act != NULL)
 	{
+		PGresult   *results;
+		char *pTmp;
 		struct ECPGtype_information_cache *cache,
 				   *ptr;
 
+		printf("PQtransactionStatus=%d\n", PQtransactionStatus(act->connection));
+		if ((( pTmp = getenv( "PG_COMMIT_ON_DISCONNECT" )) != NULL) && (*pTmp == 'Y')) {
+			if (PQtransactionStatus(act->connection) != PQTRANS_IDLE)
+			{
+				results = PQexec(act->connection, "commit");
+				if (!ecpg_check_PQresult(results, 132, act->connection, ECPG_COMPAT_PGSQL))
+					return false;
+				PQclear(results);
+			}
+		}
 		ecpg_deallocate_all_conn(0, ECPG_COMPAT_PGSQL, act);
 		PQfinish(act->connection);
 
