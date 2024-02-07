@@ -122,10 +122,8 @@ ecpg_finish(struct connection *act)
 	{
 		PGresult   *results;
 		char *pTmp;
-		struct ECPGtype_information_cache *cache,
-				   *ptr;
+		struct ECPGtype_information_cache *cache, *ptr;
 
-		printf("PQtransactionStatus=%d\n", PQtransactionStatus(act->connection));
 		if ((( pTmp = getenv( "PG_COMMIT_ON_DISCONNECT" )) != NULL) && (*pTmp == 'Y')) {
 			if (PQtransactionStatus(act->connection) != PQTRANS_IDLE)
 			{
