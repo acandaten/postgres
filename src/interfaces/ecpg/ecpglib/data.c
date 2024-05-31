@@ -141,6 +141,13 @@ static int isEpoch(struct tm *tm) {
   return 0;
 }
 
+static int isEpochTime(struct tm *tm) {
+  if (tm->tm_hour == 0 && tm->tm_min == 0&& tm->tm_sec == 0) {
+    return 1;
+  }
+  return 0;
+}
+
 /* imported from src/backend/utils/adt/encode.c */
 
 unsigned
@@ -616,6 +623,8 @@ ecpg_get_data(const PGresult *results, int act_tuple, int act_field, int lineno,
 								memset(s_timestamp, 0, sizeof(s_timestamp));
 								if (isEpoch(&tm_unix) != 0) {
 									sprintf(s_timestamp, "");
+								} else if (isEpochTime(&tm_unix) != 0) {
+									strftime(s_timestamp, sizeof(s_timestamp), "%d-%b-%Y", &tm_unix);
 								} else {
 									strftime(s_timestamp, sizeof(s_timestamp), "%d-%b-%Y %H:%M:%S", &tm_unix);
 								}

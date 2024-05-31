@@ -255,8 +255,13 @@ ecpg_raise_backend(int line, PGresult *result, PGconn *conn, int compat)
 	}
 
 	/* copy error message */
-	snprintf(sqlca->sqlerrm.sqlerrmc, sizeof(sqlca->sqlerrm.sqlerrmc), "%s on line %d", message, line);
-	sqlca->sqlerrm.sqlerrml = strlen(sqlca->sqlerrm.sqlerrmc);
+	if (INGRES_MODE(compat)) {
+		snprintf(sqlca->sqlerrm.sqlerrmc, sizeof(sqlca->sqlerrm.sqlerrmc), "%s", message);
+		         sqlca->sqlerrm.sqlerrml = strlen(sqlca->sqlerrm.sqlerrmc);
+	} else {
+		snprintf(sqlca->sqlerrm.sqlerrmc, sizeof(sqlca->sqlerrm.sqlerrmc), "%s on line %d", message, line);
+		         sqlca->sqlerrm.sqlerrml = strlen(sqlca->sqlerrm.sqlerrmc);
+	}
 
 	/* copy SQLSTATE */
 	strncpy(sqlca->sqlstate, sqlstate, sizeof(sqlca->sqlstate));
